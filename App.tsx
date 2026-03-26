@@ -601,16 +601,7 @@ const App: React.FC = () => {
         </main>
 
         {/* Nút mở popup hoạt động 7 ngày (góc phải, phía trên đồng hồ) */}
-        {currentUser && (
-          <button
-            type="button"
-            onClick={() => setIsBalanceWeeklyOpen(true)}
-            className="fixed bottom-24 right-4 z-50 w-16 h-16 rounded-full bg-white/85 backdrop-blur-md border border-[#0b5fa5]/25 shadow-xl hover:bg-white transition-colors flex items-center justify-center"
-            title="Hoạt động 7 ngày gần nhất"
-          >
-            <HoatDongActivityIcon size={30} />
-          </button>
-        )}
+        {/* (Ẩn theo yêu cầu) */}
 
         <WeeklyBalanceActivityModal
           open={isBalanceWeeklyOpen}
