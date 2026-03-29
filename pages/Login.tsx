@@ -86,21 +86,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: 'url(/vietinbank-bg.png)' }}
+        style={{ backgroundImage: 'url(/login-bg-skyline.png)' }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/50" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/40" />
 
       {/* Navigation Bar */}
       <nav className="relative z-10">
         <div className="mx-4 mt-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg border border-blue-100 px-6 py-3 flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center">
+            {/* Logo + tagline */}
+            <div className="flex items-center gap-4 min-w-0 flex-1">
               <img
                 src="/vietinbank-logo.png"
                 alt="VietinBank"
-                className="h-9 w-auto object-contain"
+                className="h-9 w-auto object-contain shrink-0"
               />
+              <p className="text-xs sm:text-sm md:text-base font-semibold text-slate-700 leading-snug border-l border-slate-200 pl-3 sm:pl-4 min-w-0 max-w-[min(100%,14rem)] sm:max-w-none">
+                Phần mềm quản lý dòng tiền
+              </p>
             </div>
 
             {/* Buttons */}
@@ -125,12 +128,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       </nav>
 
       {/* Hero Text - positioned from bottom */}
-      <div className="absolute z-10 bottom-[12%] left-8">
-        <div className="max-w-xl">
-          <h1 className="text-white text-3xl md:text-4xl font-bold mb-2 drop-shadow-lg">
-            VietinBank hân hạnh phục vụ!
+      <div className="absolute z-10 bottom-[12%] left-4 right-4 sm:left-8 sm:right-8 md:right-auto">
+        <div className="max-w-none">
+          <h1 className="text-white font-bold mb-2 drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)] whitespace-nowrap tracking-tight text-[clamp(0.72rem,1.85vw+0.6rem,2.5rem)]">
+            VietinBank Đông Anh Sẵn Sàng Phục Vụ
           </h1>
-          <p className="text-white/85 text-base md:text-lg drop-shadow-md">
+          <p className="text-white/90 text-base md:text-lg drop-shadow-md max-w-xl">
             Hệ thống quản lý dự án & giao dịch bồi thường GPMB
           </p>
         </div>
