@@ -645,11 +645,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                 <th className="px-4 py-3.5 text-center border-r border-slate-200 min-w-[130px]">Tiền còn lại</th>
                 <th className="px-4 py-3.5 border-r border-slate-200 min-w-[130px]">Ngày giải ngân</th>
                 <th className="px-4 py-3.5 border-r border-slate-200 text-center min-w-[120px]">Trạng thái</th>
+                <th className="px-4 py-3.5 text-center border-r border-slate-200 min-w-[88px]">Thao tác</th>
                 <th className="px-4 py-3.5 border-r border-slate-200 min-w-[140px]">Mã Dự Án</th>
-                <th className="px-4 py-3.5 border-r border-slate-200 min-w-[120px]">Mã Hộ Dân</th>
-                <th className="px-4 py-3.5 border-r border-slate-200 min-w-[100px]">Mã GD</th>
-                <th className="px-4 py-3.5 border-r border-slate-200 min-w-[180px]">Loại chi trả</th>
-                <th className="px-4 py-3.5 text-center min-w-[80px]">Thao tác</th>
+                <th className="px-4 py-3.5 text-center border-r border-slate-200 min-w-[120px]">Mã Hộ Dân</th>
+                <th className="px-4 py-3.5 min-w-[180px]">Loại chi trả</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -809,44 +808,31 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         </span>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-center border-r border-slate-200" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPrintTransaction(t);
+                        }}
+                        className="text-xs font-semibold text-emerald-700 hover:underline px-1 py-0.5"
+                        title="In phiếu chi"
+                      >
+                        In phiếu
+                      </button>
+                    </td>
                     <td className="px-4 py-3 border-r border-slate-200 max-w-[140px] truncate">
                       <span className="text-xs font-bold bg-blue-50 px-2 py-1 rounded text-blue-700 truncate block">
                         {project ? project.code : (t.projectId as any).toString()}
                       </span>
                     </td>
-                    <td className="px-4 py-3 border-r border-slate-200 font-mono text-[11px] font-bold text-slate-500">
+                    <td className="px-4 py-3 border-r border-slate-200 font-mono text-[11px] font-bold text-slate-500 text-center">
                       {t.household.id}
                     </td>
-                    <td className="px-4 py-3 border-r border-slate-200">
-                      <span className="font-bold text-slate-800 text-xs">{t.id}</span>
-                    </td>
-                    <td className="px-4 py-3 border-r border-slate-200">
+                    <td className="px-4 py-3">
                       <span className="text-[11px] font-bold text-slate-600 bg-slate-50 px-2 py-0.5 rounded">
                         {t.paymentType || '-'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          className="text-xs font-semibold text-blue-600 hover:underline px-1 py-0.5"
-                          title="Chi tiết"
-                          onClick={() => onSelect(t)}
-                        >
-                          Chi tiết
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPrintTransaction(t);
-                          }}
-                          className="text-xs font-semibold text-emerald-700 hover:underline px-1 py-0.5"
-                          title="In phiếu chi"
-                        >
-                          In phiếu
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 );

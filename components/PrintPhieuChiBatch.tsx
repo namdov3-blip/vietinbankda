@@ -85,9 +85,6 @@ export const PrintPhieuChiBatch: React.FC<PrintPhieuChiBatchProps> = ({
             : getVNStartOfDay(getVNNow());
 
         let interest = 0;
-        let interestBefore = 0;
-        let interestAfter = 0;
-        let hasRateChange = false;
 
         if (interestRateChangeDate && interestRateBefore !== null && interestRateAfter !== null) {
             const interestResult = calculateInterestWithRateChange(
@@ -99,9 +96,6 @@ export const PrintPhieuChiBatch: React.FC<PrintPhieuChiBatchProps> = ({
                 interestRateAfter
             );
             interest = interestResult.totalInterest;
-            interestBefore = interestResult.interestBefore;
-            interestAfter = interestResult.interestAfter;
-            hasRateChange = true;
         } else {
             interest = calculateInterest(principalBase, interestRate, baseDate, interestEndDate);
         }
@@ -134,8 +128,6 @@ export const PrintPhieuChiBatch: React.FC<PrintPhieuChiBatchProps> = ({
         const originalApprovedFormatted = formatCurrency(originalTotalApproved);
         const approvedFormatted = formatCurrency(transaction.compensation.totalApproved || 0);
         const interestFormatted = formatCurrency(interest || 0);
-        const interestBeforeFormatted = formatCurrency(interestBefore || 0);
-        const interestAfterFormatted = formatCurrency(interestAfter || 0);
         const supplementaryFormatted = formatCurrency(supplementary || 0);
         const totalFormatted = formatCurrency(totalAmount);
         const amountWords = formatCurrencyToWords(totalAmount) || 'Không đồng';
@@ -184,27 +176,10 @@ export const PrintPhieuChiBatch: React.FC<PrintPhieuChiBatchProps> = ({
                                     <span className="font-bold">{approvedFormatted}</span>
                                 </div>
                             )}
-                            {hasRateChange ? (
-                                <>
-                                    <div className="flex justify-between text-xs">
-                                        <span>- Lãi (trước {interestRateChangeDate ? formatDate(interestRateChangeDate) : '01/01/2026'}):</span>
-                                        <span className="font-bold">{interestBeforeFormatted}</span>
-                                    </div>
-                                    <div className="flex justify-between text-xs">
-                                        <span>- Lãi (từ {interestRateChangeDate ? formatDate(interestRateChangeDate) : '01/01/2026'}):</span>
-                                        <span className="font-bold">{interestAfterFormatted}</span>
-                                    </div>
-                                    <div className="flex justify-between text-xs border-t border-slate-300 pt-1">
-                                        <span>- Tổng lãi:</span>
-                                        <span className="font-bold">{interestFormatted}</span>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="flex justify-between text-xs">
-                                    <span>- Lãi:</span>
-                                    <span className="font-bold">{interestFormatted}</span>
-                                </div>
-                            )}
+                            <div className="flex justify-between text-xs">
+                                <span>Lãi:</span>
+                                <span className="font-bold">{interestFormatted}</span>
+                            </div>
                             {withdrawnAmount && withdrawnAmount > 0 && (
                                 <div className="flex justify-between text-xs">
                                     <span>- Số tiền đã rút:</span>
