@@ -177,7 +177,7 @@ export const PrintPhieuChiBatch: React.FC<PrintPhieuChiBatchProps> = ({
                                 </div>
                             )}
                             <div className="flex justify-between text-xs">
-                                <span>Lãi:</span>
+                                <span>- Lãi:</span>
                                 <span className="font-bold">{interestFormatted}</span>
                             </div>
                             {withdrawnAmount && withdrawnAmount > 0 && (

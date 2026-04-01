@@ -377,7 +377,7 @@ export const PrintPhieuChi: React.FC<PrintPhieuChiProps> = ({
                             </div>
                         )}
                         <div className="flex justify-between text-xs">
-                            <span>Lãi:</span>
+                            <span>- Lãi:</span>
                             <span className="font-bold">{interestFormatted}</span>
                         </div>
                         {withdrawnAmount && withdrawnAmount > 0 && (

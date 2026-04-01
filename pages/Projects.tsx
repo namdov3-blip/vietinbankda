@@ -70,7 +70,7 @@ export const Projects: React.FC<ProjectsProps> = ({
   // State for Search, Pagination, View Mode
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('list');
   const itemsPerPage = viewMode === 'kanban' ? 10 : 12;
 
   const calculateInterestSmart = useCallback((

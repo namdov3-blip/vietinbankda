@@ -180,8 +180,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return base;
   }, [dateFilteredTransactions, selectedProjectIds]);
 
-  const statsTotalProjects = filteredProjects.length;
-
   const isDateFiltered = !!(startDate || endDate);
 
   const statsTotalProjectValueUploaded = useMemo(() => {
@@ -234,6 +232,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return acc + principalBase + interest + supplementary;
     }, 0));
 
+    // Tiền chưa giải ngân chỉ theo phê duyệt (gốc + bổ sung), không cộng lãi
+    const statsPendingByApprovalOnly = roundTo2(pendingTrans.reduce((acc, t) => {
+      const principalBase = (t as any).principalForInterest ?? t.compensation.totalApproved;
+      const supplementary = t.supplementaryAmount || 0;
+      return acc + principalBase + supplementary;
+    }, 0));
+
     let tempInt = 0;
     let lockedInt = 0;
     let intBefore = 0;
@@ -268,6 +273,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       statsDisbursedAmount: disbursedAmount,
       statsPendingCount: pendingTrans.length,
       statsPendingAmount: pendingAmount,
+      statsPendingByApprovalOnly,
       statsTotalInterestRounded: roundTo2(tempInt),
       statsLockedInterestRounded: roundTo2(lockedInt),
       interestBeforeTotalRounded: roundTo2(intBefore),
@@ -280,7 +286,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       resolveProject, interestRateChangeDate, interestRateBefore, interestRateAfter]);
 
   const {
-    statsDisbursedTrans, statsDisbursedAmount, statsPendingCount, statsPendingAmount,
+    statsDisbursedTrans, statsDisbursedAmount, statsPendingCount, statsPendingAmount, statsPendingByApprovalOnly,
     statsTotalInterestRounded, statsLockedInterestRounded,
     interestBeforeTotalRounded, interestAfterTotalRounded,
     displayBalance, statsTotalProjectValue, hasRateChange
@@ -693,7 +699,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <h3 className="text-base font-bold text-[#0f172a]">Thống kê tổng quan</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
           {[
-            { label: 'Tổng dự án', value: statsTotalProjects, accent: 'border-l-blue-500' },
+            { label: 'Tiền chưa giải ngân (theo phê duyệt)', value: formatCurrency(statsPendingByApprovalOnly), accent: 'border-l-blue-500' },
             { label: 'Tổng giá trị dự án', value: formatCurrency(statsTotalProjectValueUploaded), accent: 'border-l-indigo-500' },
             { label: 'Tiền đã giải ngân', value: formatCurrency(statsDisbursedAmount), accent: 'border-l-violet-500' },
             { label: endDate ? 'Tiền chưa giải ngân (mốc đến ngày)' : 'Số dư ngân hàng', value: formatCurrency(displayBalance), accent: 'border-l-emerald-500' },
