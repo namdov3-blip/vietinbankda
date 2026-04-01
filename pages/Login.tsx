@@ -94,13 +94,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       <nav className="relative z-10">
         <div className="mx-4 mt-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg border border-blue-100 px-6 py-3 flex items-center justify-between">
-            {/* Logo + tagline */}
+            {/* Tên + tagline */}
             <div className="flex items-center gap-4 min-w-0 flex-1">
-              <img
-                src="/vietinbank-logo.png"
-                alt="VietinBank"
-                className="h-9 w-auto object-contain shrink-0"
-              />
+              <span className="text-lg sm:text-xl font-bold text-[#005992] tracking-tight shrink-0 whitespace-nowrap">
+                VietinBank
+              </span>
               <p className="text-xs sm:text-sm md:text-base font-semibold text-slate-700 leading-snug border-l border-slate-200 pl-3 sm:pl-4 min-w-0 max-w-[min(100%,14rem)] sm:max-w-none">
                 Phần mềm quản lý dòng tiền
               </p>

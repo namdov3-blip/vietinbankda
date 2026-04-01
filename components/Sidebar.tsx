@@ -34,44 +34,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, curre
         background: 'linear-gradient(180deg, #005992 0%, #004070 35%, #5c2a4a 65%, #D71049 100%)',
       }}
     >
-      {/* Logo + chi nhánh */}
+      {/* Tên + chi nhánh */}
       <div
         className={`pt-5 pb-5 flex border-b border-white/10 ${collapsed ? 'px-3' : 'px-5'} justify-center ${collapsed ? 'items-center' : 'flex-col items-center gap-2'}`}
-        title={collapsed ? 'Chi Nhánh Đông Anh' : undefined}
+        title={collapsed ? 'VietinBank — Chi Nhánh Đông Anh' : undefined}
       >
         {collapsed ? (
-          <img
-            src="/vietinbank-sidebar-logo.png"
-            alt="VietinBank"
-            className="h-9 w-auto max-w-[52px] object-contain flex-shrink-0"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              if (target.parentElement) {
-                const fallback = document.createElement('div');
-                fallback.className = 'w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0';
-                fallback.innerHTML = '<span style="color:white;font-weight:700;font-size:12px">VTB</span>';
-                target.parentElement.insertBefore(fallback, target.nextSibling);
-              }
-            }}
-          />
+          <span className="text-[10px] font-bold text-white text-center leading-tight px-0.5 max-w-[52px] block">
+            Vietin
+            <br />
+            Bank
+          </span>
         ) : (
           <>
-            <img
-              src="/vietinbank-sidebar-logo.png"
-              alt="VietinBank"
-              className="h-11 w-auto object-contain"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                if (target.parentElement) {
-                  const fallback = document.createElement('div');
-                  fallback.className = 'flex items-center gap-1';
-                  fallback.innerHTML = '<span style="color:white;font-weight:700;font-size:20px;letter-spacing:-0.5px">VietinBank eFAST</span>';
-                  target.parentElement.insertBefore(fallback, target.nextSibling);
-                }
-              }}
-            />
+            <p className="text-center text-xl font-bold text-white tracking-tight px-1">
+              VietinBank
+            </p>
             <p className="text-center text-[11px] font-semibold text-white/95 leading-snug tracking-wide px-1">
               Chi Nhánh Đông Anh
             </p>
