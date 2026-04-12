@@ -463,13 +463,11 @@ export const PrintPhieuChi: React.FC<PrintPhieuChiProps> = ({
                         <p className="font-bold text-sm">Người lập biểu</p>
                         <p className="text-xs italic">(Ký, họ tên)</p>
                         <div className="h-16"></div>
-                        <p className="text-sm font-semibold">{currentUser.name}</p>
                     </div>
                     <div className="text-center">
                         <p className="font-bold text-sm">Thủ quỹ</p>
                         <p className="text-xs italic">(Ký, họ tên)</p>
                         <div className="h-16"></div>
-                        <p className="text-sm font-semibold">Nguyễn Hương Ly</p>
                     </div>
                     <div className="text-center">
                         <p className="italic text-xs mb-1">{formatDateForPrint(effectivePrintDateISO)}</p>

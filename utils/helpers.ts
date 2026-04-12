@@ -430,6 +430,18 @@ export const numberToVietnameseWords = (num: number): string => {
     return readGroup(numToProcess, true);
   }
 
+  // Từ 1 tỷ trở lên: tách tỷ rồi đọc phần dư (< 1 tỷ) để tránh millions > 999 làm readGroup trả undefined
+  if (numToProcess >= 1000000000) {
+    const billions = Math.floor(numToProcess / 1000000000);
+    const rest = numToProcess % 1000000000;
+    const billionsWords =
+      billions >= 1000 ? numberToVietnameseWords(billions) : readGroup(billions);
+    if (rest === 0) {
+      return `${billionsWords} tỷ`.trim();
+    }
+    return `${billionsWords} tỷ ${numberToVietnameseWords(rest)}`.trim();
+  }
+
   const millions = Math.floor(numToProcess / 1000000);
   const thousands = Math.floor((numToProcess % 1000000) / 1000);
   const remainder = numToProcess % 1000;
