@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Transaction, TransactionStatus, User, AuditLogItem, BankTransactionType, Project } from '../types';
-import { formatCurrency, formatDate, formatDateForPrint, formatCurrencyToWords, calculateInterest, calculateInterestWithRateChange, formatNumberWithComma, parseNumberFromComma, toVNTime, fromVNTime, VN_TIMEZONE, roundTo2 } from '../utils/helpers';
+import { formatCurrency, formatDate, formatDateForPrint, formatCurrencyToWords, calculateInterest, calculateInterestWithRateChange, calculateInterestSchedule, calculateInterestScheduleWithRateChange, formatNumberWithComma, parseNumberFromComma, toVNTime, fromVNTime, VN_TIMEZONE, roundHalfUp } from '../utils/helpers';
 import { format as formatTz } from 'date-fns-tz';
 import { X, Wallet, FileText, CheckCircle, Clock, History, Scale, Printer, Undo2, ArrowDownCircle, Edit2, Save, Plus, Calendar, Loader2, ChevronDown } from 'lucide-react';
 import { GlassCard } from './GlassCard';
@@ -62,6 +62,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [refundAmountInput, setRefundAmountInput] = useState('');
   const [refundDateInput, setRefundDateInput] = useState<string>('');
   const [isRefunding, setIsRefunding] = useState(false);
+  const [showInterestSchedule, setShowInterestSchedule] = useState(false);
 
   if (!transaction) return null;
 
@@ -182,6 +183,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   }
 
+  const interestSchedule = React.useMemo(() => {
+    if (!baseDate) return null;
+    if (hasRateChange && interestRateChangeDate && interestRateBefore != null && interestRateAfter != null) {
+      return calculateInterestScheduleWithRateChange(
+        principalBase,
+        baseDate,
+        calcEndDate,
+        interestRateChangeDate,
+        interestRateBefore,
+        interestRateAfter
+      );
+    }
+    return calculateInterestSchedule(principalBase, interestRate, baseDate, calcEndDate);
+  }, [
+    baseDate,
+    principalBase,
+    interestRate,
+    calcEndDate,
+    hasRateChange,
+    interestRateChangeDate,
+    interestRateBefore,
+    interestRateAfter
+  ]);
+
   // Với hồ sơ đã giải ngân:
   // - Nếu KHÔNG chỉnh sửa ngày giải ngân, ưu tiên tổng tiền đã lưu (disbursedTotal) để khớp số liệu cũ.
   // - Nếu đang chỉnh ngày giải ngân (editedTransaction khác với transaction), dùng lại calculatedTotal để thấy lãi/tổng tiền realtime.
@@ -291,9 +316,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       }
 
       // Chuẩn hóa làm tròn về 2 chữ số để hiển thị khớp với phiếu/QR
-      interestForConfirm = roundTo2(interestForConfirm);
+      interestForConfirm = roundHalfUp(interestForConfirm, 0);
       const supplementary = transaction.supplementaryAmount || 0;
-      const calculatedTotal = roundTo2(principalBaseForConfirm + interestForConfirm + supplementary);
+      const calculatedTotal = roundHalfUp(principalBaseForConfirm + interestForConfirm + supplementary, 0);
 
       const dateDisplay = formatDate(effectiveDisbursementDate.toISOString());
 
@@ -698,6 +723,76 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   = Tổng phê duyệt + Lãi {supplementary !== 0 ? `${supplementary > 0 ? '+ Tiền bổ sung' : '+ Giảm bổ sung'}` : ''} {interest === 0 && supplementary === 0 && '(Chưa tính)'}
                 </p>
               </div>
+
+              {/* Dropdown: Chi tiết lãi theo kỳ */}
+              {baseDate && interestSchedule && interestSchedule.rows?.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowInterestSchedule((v) => !v)}
+                    className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <Clock size={12} className="text-slate-600" /> Chi tiết lãi theo kỳ (cộng dồn)
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-slate-500 transition-transform ${showInterestSchedule ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showInterestSchedule && (
+                    <div className="border-t border-slate-200">
+                      <div className="px-3 py-2 bg-slate-50 text-[11px] text-slate-600 font-medium flex flex-wrap gap-x-4 gap-y-1">
+                        <span>
+                          Tổng lãi: <span className="font-bold text-slate-900">{formatCurrency(interestSchedule.totalInterest)}</span>
+                        </span>
+                        <span>
+                          Gốc+lãi cuối kỳ: <span className="font-bold text-slate-900">{formatCurrency(interestSchedule.finalBalance)}</span>
+                        </span>
+                        {hasRateChange && 'balanceAtChange' in interestSchedule && (
+                          <span>
+                            Số dư tại mốc đổi lãi suất: <span className="font-bold text-slate-900">{formatCurrency((interestSchedule as any).balanceAtChange)}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="max-h-56 overflow-auto custom-scrollbar">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-white border-b border-slate-200">
+                            <tr className="text-[10px] uppercase tracking-wide text-slate-500">
+                              <th className="text-left px-3 py-2 font-bold">Từ ngày</th>
+                              <th className="text-left px-3 py-2 font-bold">Đến ngày</th>
+                              <th className="text-right px-3 py-2 font-bold">Số ngày</th>
+                              <th className="text-right px-3 py-2 font-bold">Số dư</th>
+                              <th className="text-right px-3 py-2 font-bold">Lãi suất</th>
+                              <th className="text-right px-3 py-2 font-bold">Tiền lãi</th>
+                              <th className="text-right px-3 py-2 font-bold">Cộng dồn</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {interestSchedule.rows.map((r, idx) => (
+                              <tr key={idx} className="border-b border-slate-100 last:border-b-0">
+                                <td className="px-3 py-2 whitespace-nowrap font-semibold text-slate-800">
+                                  {formatDate(r.fromDate.toISOString())}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap font-semibold text-slate-800">
+                                  {formatDate(r.toDate.toISOString())}
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-700">{r.days}</td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatCurrency(r.openingBalance)}</td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-700">{r.ratePerYear.toFixed(2)}%</td>
+                                <td className="px-3 py-2 text-right font-bold text-rose-600">{formatCurrency(r.interest)}</td>
+                                <td className="px-3 py-2 text-right font-bold text-slate-900">{formatCurrency(r.cumulativeInterest)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Dropdown: Tiền bổ sung */}
               <div className="rounded-xl border border-blue-200 bg-blue-50/70 overflow-hidden">

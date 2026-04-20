@@ -6,6 +6,26 @@ import { toZonedTime, fromZonedTime, format as formatTz } from 'date-fns-tz';
 // Timezone constant for Vietnam
 export const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
+/**
+ * Làm tròn kiểu Half-Up theo số chữ số thập phân.
+ * Quy tắc: phần lẻ < 0.5 thì xuống, >= 0.5 thì lên (ví dụ 1.49 -> 1, 1.50 -> 2).
+ * Hỗ trợ cả số âm (đối xứng quanh 0).
+ */
+export const roundHalfUp = (value: number, decimals: number = 0): number => {
+  if (!isFinite(value)) return 0;
+  const d = Number.isFinite(decimals) ? Math.max(0, Math.trunc(decimals)) : 0;
+  const factor = 10 ** d;
+
+  // Reduce floating-point artifacts near .5 boundaries
+  const scaled = value * factor;
+  const eps = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4;
+
+  if (scaled >= 0) {
+    return Math.floor(scaled + 0.5 + eps) / factor;
+  }
+  return Math.ceil(scaled - 0.5 - eps) / factor;
+};
+
 // Helper: Get current date/time in VN timezone
 export const getVNNow = (): Date => {
   return toZonedTime(new Date(), VN_TIMEZONE);
@@ -56,17 +76,17 @@ export const toVNDateString = (dateStr: string): string | null => {
 
 // Chuẩn hóa làm tròn: giữ 2 chữ số thập phân, .49 trở xuống làm tròn xuống, .50 trở lên làm tròn lên
 export const roundTo2 = (value: number): number => {
-  if (!isFinite(value)) return 0;
-  return Math.round(value * 100) / 100;
+  return roundHalfUp(value, 2);
 };
 
 export const formatCurrency = (amount: number): string => {
-  const rounded = roundTo2(amount);
+  // VND: làm tròn 0 chữ số thập phân theo chuẩn Half-Up
+  const rounded = roundHalfUp(amount, 0);
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
   }).format(rounded);
 };
 
@@ -150,9 +170,9 @@ export const calculateInterest = (principal: number, ratePerYear: number, baseDa
 
     if (daysInPeriod > 0) {
       // Tính lãi cho kỳ này dựa trên số dư hiện tại (đã bao gồm lãi từ các kỳ trước)
-      // Giữ 2 chữ số thập phân trong quá trình tính toán, tránh làm tròn nguyên từng kỳ
       const rawPeriodInterest = currentBalance * dailyRate * daysInPeriod;
-      const periodInterest = Math.round(rawPeriodInterest * 100) / 100;
+      // Làm tròn NGUYÊN đồng cho từng kỳ rồi mới cộng dồn (khớp phiếu ngân hàng)
+      const periodInterest = roundHalfUp(rawPeriodInterest, 0);
       totalInterest += periodInterest;
       
       // Cộng lãi vào gốc để tính kỳ tiếp theo (lãi nhập gốc)
@@ -164,6 +184,214 @@ export const calculateInterest = (principal: number, ratePerYear: number, baseDa
   }
 
   return totalInterest;
+};
+
+export type InterestScheduleRow = {
+  fromDate: Date;
+  toDate: Date;
+  days: number;
+  openingBalance: number;
+  ratePerYear: number;
+  interest: number;
+  cumulativeInterest: number;
+  closingBalance: number;
+};
+
+/**
+ * Trả về bảng chi tiết theo từng kỳ tháng, có cộng dồn lãi và lãi nhập gốc.
+ * Kỳ được chia theo mốc "ngày 01 của tháng tiếp theo" giống logic ngân hàng.
+ * Lãi từng kỳ được làm tròn Half-Up nguyên đồng, sau đó mới cộng dồn và nhập gốc.
+ */
+export const calculateInterestSchedule = (
+  principal: number,
+  ratePerYear: number,
+  baseDateStr?: any,
+  endDate: Date = getVNNow()
+): { totalInterest: number; finalBalance: number; rows: InterestScheduleRow[] } => {
+  if (!baseDateStr) {
+    return { totalInterest: 0, finalBalance: principal, rows: [] };
+  }
+
+  let baseDate: Date;
+  if (baseDateStr instanceof Date) {
+    baseDate = new Date(baseDateStr);
+  } else if (typeof baseDateStr === 'object') {
+    return { totalInterest: 0, finalBalance: principal, rows: [] };
+  } else {
+    baseDate = new Date(baseDateStr);
+  }
+  if (isNaN(baseDate.getTime())) {
+    return { totalInterest: 0, finalBalance: principal, rows: [] };
+  }
+
+  const baseDateVN = getVNStartOfDay(baseDate);
+  const endDateVN = getVNStartOfDay(endDate);
+  const timeDiff = endDateVN.getTime() - baseDateVN.getTime();
+  const totalDays = Math.floor(timeDiff / (1000 * 3600 * 24));
+  if (totalDays <= 0) {
+    return { totalInterest: 0, finalBalance: principal, rows: [] };
+  }
+
+  const dailyRate = (ratePerYear / 100) / 365;
+  const rows: InterestScheduleRow[] = [];
+
+  let currentBalance = principal;
+  let totalInterestAcc = 0;
+  let currentDate = new Date(baseDateVN);
+
+  while (currentDate < endDateVN) {
+    const periodEnd = new Date(currentDate);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    periodEnd.setDate(1);
+    const periodEndVN = getVNStartOfDay(periodEnd);
+    const actualPeriodEnd = periodEndVN > endDateVN ? endDateVN : periodEndVN;
+
+    const daysInPeriod = Math.floor(
+      (actualPeriodEnd.getTime() - currentDate.getTime()) / (1000 * 3600 * 24)
+    );
+
+    if (daysInPeriod > 0) {
+      const openingBalance = currentBalance;
+      const rawPeriodInterest = currentBalance * dailyRate * daysInPeriod;
+      const interest = roundHalfUp(rawPeriodInterest, 0);
+      totalInterestAcc += interest;
+      currentBalance += interest;
+
+      rows.push({
+        fromDate: new Date(currentDate),
+        toDate: new Date(actualPeriodEnd),
+        days: daysInPeriod,
+        openingBalance,
+        ratePerYear,
+        interest,
+        cumulativeInterest: totalInterestAcc,
+        closingBalance: currentBalance
+      });
+    }
+
+    currentDate = new Date(actualPeriodEnd);
+  }
+
+  return { totalInterest: totalInterestAcc, finalBalance: currentBalance, rows };
+};
+
+/**
+ * Bảng chi tiết theo kỳ tháng khi có mốc thay đổi lãi suất.
+ * Nếu mốc nằm trong một kỳ, kỳ đó sẽ được tách thành 2 dòng.
+ */
+export const calculateInterestScheduleWithRateChange = (
+  principal: number,
+  baseDateStr: any,
+  endDate: Date,
+  rateChangeDateStr: string | Date,
+  rateBefore: number,
+  rateAfter: number
+): { totalInterest: number; finalBalance: number; rows: InterestScheduleRow[]; balanceAtChange: number } => {
+  if (!baseDateStr) {
+    return { totalInterest: 0, finalBalance: principal, rows: [], balanceAtChange: principal };
+  }
+
+  let baseDate: Date;
+  if (baseDateStr instanceof Date) {
+    baseDate = new Date(baseDateStr);
+  } else if (typeof baseDateStr === 'object') {
+    return { totalInterest: 0, finalBalance: principal, rows: [], balanceAtChange: principal };
+  } else {
+    baseDate = new Date(baseDateStr);
+  }
+  if (isNaN(baseDate.getTime())) {
+    return { totalInterest: 0, finalBalance: principal, rows: [], balanceAtChange: principal };
+  }
+
+  const baseDateVN = getVNStartOfDay(baseDate);
+  const endDateVN = getVNStartOfDay(endDate);
+  const changeDateVN = getVNStartOfDay(rateChangeDateStr);
+
+  const timeDiff = endDateVN.getTime() - baseDateVN.getTime();
+  const totalDays = Math.floor(timeDiff / (1000 * 3600 * 24));
+  if (totalDays <= 0) {
+    return { totalInterest: 0, finalBalance: principal, rows: [], balanceAtChange: principal };
+  }
+
+  const rows: InterestScheduleRow[] = [];
+  let currentBalance = principal;
+  let totalInterestAcc = 0;
+  let currentDate = new Date(baseDateVN);
+  let balanceAtChange = principal;
+
+  const pushRow = (fromDate: Date, toDate: Date, days: number, rate: number, openingBalance: number, interest: number, closingBalance: number) => {
+    totalInterestAcc += interest;
+    rows.push({
+      fromDate: new Date(fromDate),
+      toDate: new Date(toDate),
+      days,
+      openingBalance,
+      ratePerYear: rate,
+      interest,
+      cumulativeInterest: totalInterestAcc,
+      closingBalance
+    });
+  };
+
+  while (currentDate < endDateVN) {
+    const periodEnd = new Date(currentDate);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    periodEnd.setDate(1);
+    const periodEndVN = getVNStartOfDay(periodEnd);
+    const actualPeriodEnd = periodEndVN > endDateVN ? endDateVN : periodEndVN;
+
+    const periodStartsBeforeChange = currentDate < changeDateVN;
+    const periodEndsAfterChange = actualPeriodEnd > changeDateVN;
+    const changeInPeriod = periodStartsBeforeChange && periodEndsAfterChange;
+
+    if (changeInPeriod) {
+      const daysBeforeChange = Math.floor(
+        (changeDateVN.getTime() - currentDate.getTime()) / (1000 * 3600 * 24)
+      );
+      if (daysBeforeChange > 0) {
+        const openingBalance = currentBalance;
+        const dailyRateBefore = (rateBefore / 100) / 365;
+        const raw = currentBalance * dailyRateBefore * daysBeforeChange;
+        const interest = roundHalfUp(raw, 0);
+        currentBalance += interest;
+        balanceAtChange = currentBalance;
+        pushRow(currentDate, changeDateVN, daysBeforeChange, rateBefore, openingBalance, interest, currentBalance);
+      }
+
+      const daysAfterChange = Math.floor(
+        (actualPeriodEnd.getTime() - changeDateVN.getTime()) / (1000 * 3600 * 24)
+      );
+      if (daysAfterChange > 0) {
+        const openingBalance = currentBalance;
+        const dailyRateAfter = (rateAfter / 100) / 365;
+        const raw = currentBalance * dailyRateAfter * daysAfterChange;
+        const interest = roundHalfUp(raw, 0);
+        currentBalance += interest;
+        pushRow(changeDateVN, actualPeriodEnd, daysAfterChange, rateAfter, openingBalance, interest, currentBalance);
+      }
+    } else {
+      const daysInPeriod = Math.floor(
+        (actualPeriodEnd.getTime() - currentDate.getTime()) / (1000 * 3600 * 24)
+      );
+      if (daysInPeriod > 0) {
+        const useRateAfter = currentDate >= changeDateVN;
+        const rate = useRateAfter ? rateAfter : rateBefore;
+        const openingBalance = currentBalance;
+        const dailyRate = (rate / 100) / 365;
+        const raw = currentBalance * dailyRate * daysInPeriod;
+        const interest = roundHalfUp(raw, 0);
+        currentBalance += interest;
+        if (!useRateAfter && actualPeriodEnd.getTime() === changeDateVN.getTime()) {
+          balanceAtChange = currentBalance;
+        }
+        pushRow(currentDate, actualPeriodEnd, daysInPeriod, rate, openingBalance, interest, currentBalance);
+      }
+    }
+
+    currentDate = new Date(actualPeriodEnd);
+  }
+
+  return { totalInterest: totalInterestAcc, finalBalance: currentBalance, rows, balanceAtChange };
 };
 
 /**
@@ -284,7 +512,7 @@ export const calculateInterestWithRateChange = (
             if (daysBeforeChange > 0) {
                 const dailyRateBefore = (rateBefore / 100) / 365;
                 const rawInterestBefore = currentBalance * dailyRateBefore * daysBeforeChange;
-                const periodInterestBefore = Math.round(rawInterestBefore * 100) / 100;
+                const periodInterestBefore = roundHalfUp(rawInterestBefore, 0);
                 interestBefore += periodInterestBefore;
                 totalInterest += periodInterestBefore;
                 currentBalance += periodInterestBefore;
@@ -298,7 +526,7 @@ export const calculateInterestWithRateChange = (
             if (daysAfterChange > 0) {
                 const dailyRateAfter = (rateAfter / 100) / 365;
                 const rawInterestAfter = currentBalance * dailyRateAfter * daysAfterChange;
-                const periodInterestAfter = Math.round(rawInterestAfter * 100) / 100;
+                const periodInterestAfter = roundHalfUp(rawInterestAfter, 0);
                 interestAfter += periodInterestAfter;
                 totalInterest += periodInterestAfter;
                 currentBalance += periodInterestAfter;
@@ -315,7 +543,7 @@ export const calculateInterestWithRateChange = (
                 const currentRate = useRateAfter ? rateAfter : rateBefore;
                 const dailyRate = (currentRate / 100) / 365;
                 const rawPeriodInterest = currentBalance * dailyRate * daysInPeriod;
-                const periodInterest = Math.round(rawPeriodInterest * 100) / 100;
+                const periodInterest = roundHalfUp(rawPeriodInterest, 0);
                 
                 if (useRateAfter) {
                     interestAfter += periodInterest;
@@ -383,7 +611,7 @@ export const numberToVietnameseWords = (num: number): string => {
   }
   
   // Round to nearest integer for word conversion
-  const roundedNum = Math.round(num);
+  const roundedNum = roundHalfUp(num, 0);
   if (roundedNum === 0) return 'không';
   
   const numToProcess = roundedNum;

@@ -2,6 +2,55 @@ import { toZonedTime } from 'date-fns-tz';
 
 const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
+// --- Money rounding helpers (2 decimals, half-up, cumulative-safe) ---
+// We do intermediate money math in cents (1/100) using BigInt to avoid floating drift
+// when calculating per-period interest and accumulating.
+const CENTS = 100n;
+const DAYS_IN_YEAR = 365n;
+const PERCENT_DENOM = 100n;
+const BPS_DENOM = 100n; // 1% = 100 bps (basis points)
+const INTEREST_DENOM = DAYS_IN_YEAR * (PERCENT_DENOM * BPS_DENOM); // 365 * 10000
+
+const toCentsBigInt = (amount: number): bigint => {
+  if (!isFinite(amount)) return 0n;
+  return BigInt(Math.round(amount * 100));
+};
+
+const fromCentsBigInt = (cents: bigint): number => Number(cents) / 100;
+
+const toRateBpsBigInt = (ratePercentPerYear: number): bigint => {
+  if (!isFinite(ratePercentPerYear)) return 0n;
+  return BigInt(Math.round(ratePercentPerYear * 100));
+};
+
+const divRoundHalfUpPositive = (numerator: bigint, denominator: bigint): bigint => {
+  if (denominator === 0n) return 0n;
+  if (numerator <= 0n) return 0n;
+  return (numerator + denominator / 2n) / denominator;
+};
+
+const calcInterestCents = (balanceCents: bigint, rateBps: bigint, days: number): bigint => {
+  if (days <= 0) return 0n;
+  if (balanceCents <= 0n || rateBps <= 0n) return 0n;
+  const numer = balanceCents * rateBps * BigInt(days);
+  return divRoundHalfUpPositive(numer, INTEREST_DENOM);
+};
+
+/**
+ * Làm tròn kiểu Half-Up theo số chữ số thập phân.
+ * Quy tắc: phần lẻ < 0.5 thì xuống, >= 0.5 thì lên (ví dụ 1.49 -> 1, 1.50 -> 2).
+ * Hỗ trợ cả số âm (đối xứng quanh 0).
+ */
+export const roundHalfUp = (value: number, decimals: number = 0): number => {
+  if (!isFinite(value)) return 0;
+  const d = Number.isFinite(decimals) ? Math.max(0, Math.trunc(decimals)) : 0;
+  const factor = 10 ** d;
+  const scaled = value * factor;
+  const eps = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4;
+  if (scaled >= 0) return Math.floor(scaled + 0.5 + eps) / factor;
+  return Math.ceil(scaled - 0.5 - eps) / factor;
+};
+
 /**
  * Helper: Convert date to VN timezone and get start of day
  */
@@ -59,12 +108,11 @@ export const calculateInterest = (
     if (totalDays <= 0) return 0;
 
     // Tính lãi theo cách ngân hàng: lãi nhập gốc theo từng kỳ (tháng)
-    let currentBalance = principal;
-    let totalInterest = 0;
+    let currentBalanceCents = toCentsBigInt(principal);
+    let totalInterestCents = 0n;
     let currentDate = new Date(baseDateVN);
 
-    // Daily rate
-    const dailyRate = (annualRate / 100) / 365;
+    const rateBps = toRateBpsBigInt(annualRate);
 
     // Tính lãi theo từng kỳ (tháng)
     while (currentDate < endDateVN) {
@@ -85,21 +133,16 @@ export const calculateInterest = (
     );
 
     if (daysInPeriod > 0) {
-      // Tính lãi cho kỳ này dựa trên số dư hiện tại (đã bao gồm lãi từ các kỳ trước)
-      // Giữ 2 chữ số thập phân trong quá trình tính toán, tránh làm tròn nguyên từng kỳ
-      const rawPeriodInterest = currentBalance * dailyRate * daysInPeriod;
-      const periodInterest = Math.round(rawPeriodInterest * 100) / 100;
-      totalInterest += periodInterest;
-      
-      // Cộng lãi vào gốc để tính kỳ tiếp theo (lãi nhập gốc)
-      currentBalance += periodInterest;
+      const periodInterestCents = calcInterestCents(currentBalanceCents, rateBps, daysInPeriod);
+      totalInterestCents += periodInterestCents;
+      currentBalanceCents += periodInterestCents;
     }
 
         // Chuyển sang kỳ tiếp theo
         currentDate = new Date(actualPeriodEnd);
     }
 
-    return totalInterest;
+    return fromCentsBigInt(totalInterestCents);
 };
 
 /**
@@ -163,12 +206,15 @@ export const calculateInterestWithRateChange = (
 
     // Tính lãi liên tục theo từng kỳ tháng, áp dụng lãi suất phù hợp cho từng kỳ
     // Logic: Lãi nhập gốc theo từng kỳ tháng (từ đầu tháng đến đầu tháng tiếp theo)
-    let currentBalance = principal;
-    let totalInterest = 0;
-    let interestBefore = 0;
-    let interestAfter = 0;
+    let currentBalanceCents = toCentsBigInt(principal);
+    let totalInterestCents = 0n;
+    let interestBeforeCents = 0n;
+    let interestAfterCents = 0n;
     let currentDate = new Date(baseDateVN);
-    let balanceAtChange = principal;
+    let balanceAtChangeCents = currentBalanceCents;
+
+    const rateBeforeBps = toRateBpsBigInt(rateBefore);
+    const rateAfterBps = toRateBpsBigInt(rateAfter);
 
     while (currentDate < endDateVN) {
         // Xác định ngày kết thúc kỳ (ngày đầu tháng tiếp theo)
@@ -193,13 +239,11 @@ export const calculateInterestWithRateChange = (
                 (changeDateVN.getTime() - currentDate.getTime()) / (1000 * 3600 * 24)
             );
             if (daysBeforeChange > 0) {
-                const dailyRateBefore = (rateBefore / 100) / 365;
-                const rawInterestBefore = currentBalance * dailyRateBefore * daysBeforeChange;
-                const periodInterestBefore = Math.round(rawInterestBefore * 100) / 100;
-                interestBefore += periodInterestBefore;
-                totalInterest += periodInterestBefore;
-                currentBalance += periodInterestBefore;
-                balanceAtChange = currentBalance; // Lưu số dư tại mốc thay đổi
+                const periodInterestBeforeCents = calcInterestCents(currentBalanceCents, rateBeforeBps, daysBeforeChange);
+                interestBeforeCents += periodInterestBeforeCents;
+                totalInterestCents += periodInterestBeforeCents;
+                currentBalanceCents += periodInterestBeforeCents;
+                balanceAtChangeCents = currentBalanceCents; // Lưu số dư tại mốc thay đổi
             }
             
             // Phần 2: Từ changeDate đến actualPeriodEnd (dùng rateAfter)
@@ -207,12 +251,10 @@ export const calculateInterestWithRateChange = (
                 (actualPeriodEnd.getTime() - changeDateVN.getTime()) / (1000 * 3600 * 24)
             );
             if (daysAfterChange > 0) {
-                const dailyRateAfter = (rateAfter / 100) / 365;
-                const rawInterestAfter = currentBalance * dailyRateAfter * daysAfterChange;
-                const periodInterestAfter = Math.round(rawInterestAfter * 100) / 100;
-                interestAfter += periodInterestAfter;
-                totalInterest += periodInterestAfter;
-                currentBalance += periodInterestAfter;
+                const periodInterestAfterCents = calcInterestCents(currentBalanceCents, rateAfterBps, daysAfterChange);
+                interestAfterCents += periodInterestAfterCents;
+                totalInterestCents += periodInterestAfterCents;
+                currentBalanceCents += periodInterestAfterCents;
             }
         } else {
             // Kỳ bình thường: dùng rateBefore hoặc rateAfter
@@ -223,23 +265,21 @@ export const calculateInterestWithRateChange = (
             if (daysInPeriod > 0) {
                 // Xác định lãi suất: nếu kỳ bắt đầu từ mốc thay đổi trở đi, dùng rateAfter
                 const useRateAfter = currentDate >= changeDateVN;
-                const currentRate = useRateAfter ? rateAfter : rateBefore;
-                const dailyRate = (currentRate / 100) / 365;
-                const rawPeriodInterest = currentBalance * dailyRate * daysInPeriod;
-                const periodInterest = Math.round(rawPeriodInterest * 100) / 100;
-                
+                const currentRateBps = useRateAfter ? rateAfterBps : rateBeforeBps;
+                const periodInterestCents = calcInterestCents(currentBalanceCents, currentRateBps, daysInPeriod);
+
                 if (useRateAfter) {
-                    interestAfter += periodInterest;
+                    interestAfterCents += periodInterestCents;
                 } else {
-                    interestBefore += periodInterest;
+                    interestBeforeCents += periodInterestCents;
                 }
-                
-                totalInterest += periodInterest;
-                currentBalance += periodInterest;
+
+                totalInterestCents += periodInterestCents;
+                currentBalanceCents += periodInterestCents;
                 
                 // Lưu số dư tại mốc thay đổi nếu kỳ này kết thúc đúng tại mốc
                 if (!useRateAfter && actualPeriodEnd.getTime() === changeDateVN.getTime()) {
-                    balanceAtChange = currentBalance;
+                    balanceAtChangeCents = currentBalanceCents;
                 }
             }
         }
@@ -249,9 +289,9 @@ export const calculateInterestWithRateChange = (
     }
 
     return {
-        totalInterest,
-        interestBefore,
-        interestAfter,
-        balanceAtChange
+        totalInterest: fromCentsBigInt(totalInterestCents),
+        interestBefore: fromCentsBigInt(interestBeforeCents),
+        interestAfter: fromCentsBigInt(interestAfterCents),
+        balanceAtChange: fromCentsBigInt(balanceAtChangeCents)
     };
 };
