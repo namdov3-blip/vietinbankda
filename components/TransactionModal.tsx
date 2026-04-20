@@ -52,7 +52,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [paymentDateInput, setPaymentDateInput] = useState<string>('');
   const [isSavingPaymentDate, setIsSavingPaymentDate] = useState(false);
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
-  const [showSupplementaryForm, setShowSupplementaryForm] = useState(true);
+  const [showSupplementaryForm, setShowSupplementaryForm] = useState(false);
   const [withdrawAmountInput, setWithdrawAmountInput] = useState('');
   const [withdrawDateInput, setWithdrawDateInput] = useState<string>('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -767,7 +767,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                               <th className="text-right px-3 py-2 font-bold">Số dư</th>
                               <th className="text-right px-3 py-2 font-bold">Lãi suất</th>
                               <th className="text-right px-3 py-2 font-bold">Tiền lãi</th>
-                              <th className="text-right px-3 py-2 font-bold">Cộng dồn</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -783,7 +782,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                                 <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatCurrency(r.openingBalance)}</td>
                                 <td className="px-3 py-2 text-right font-semibold text-slate-700">{r.ratePerYear.toFixed(2)}%</td>
                                 <td className="px-3 py-2 text-right font-bold text-rose-600">{formatCurrency(r.interest)}</td>
-                                <td className="px-3 py-2 text-right font-bold text-slate-900">{formatCurrency(r.cumulativeInterest)}</td>
                               </tr>
                             ))}
                           </tbody>
